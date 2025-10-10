@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"strings"
 	"time"
 
 	"massage-booking/backend/models"
@@ -68,10 +69,11 @@ func createTables() error {
 		return fmt.Errorf("failed to create time_slots table: %v", err)
 	}
 
-	// Create bookings table for Story #2
+	// Create bookings table for Story #2 & #3
 	bookingsTable := `
 	CREATE TABLE IF NOT EXISTS bookings (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		reference TEXT UNIQUE NOT NULL,
 		client_name TEXT NOT NULL,
 		email TEXT NOT NULL,
 		phone TEXT NOT NULL,
@@ -364,6 +366,78 @@ func IsSlotReserved(slotID int) (bool, error) {
 	}
 
 	return count > 0, nil
+}
+
+// GenerateBookingReference generates a unique booking reference
+func GenerateBookingReference(date string) (string, error) {
+	// Get count of bookings for this date
+	var count int
+	dateOnly := strings.Split(date, " ")[0] // Extract date part if datetime
+	err := DB.QueryRow("SELECT COUNT(*) FROM bookings WHERE date = ?", dateOnly).Scan(&count)
+	if err != nil {
+		return "", fmt.Errorf("failed to get booking count: %v", err)
+	}
+
+	// Format: BK-YYYYMMDD-XXX
+	dateStr := strings.ReplaceAll(dateOnly, "-", "")
+	reference := fmt.Sprintf("BK-%s-%03d", dateStr, count+1)
+
+	return reference, nil
+}
+
+// GetBookingByID retrieves a booking by ID with service details
+func GetBookingByID(bookingID int) (*models.BookingDetail, error) {
+	query := `
+		SELECT b.id, b.reference, b.client_name, b.email, b.phone,
+		       b.service_id, b.date, b.time_slot, b.created_at,
+		       mt.name as service_name, mt.duration, mt.price
+		FROM bookings b
+		JOIN massage_types mt ON b.service_id = mt.id
+		WHERE b.id = ?
+	`
+
+	var booking models.BookingDetail
+	err := DB.QueryRow(query, bookingID).Scan(
+		&booking.ID, &booking.Reference, &booking.ClientName, &booking.Email, &booking.Phone,
+		&booking.ServiceID, &booking.Date, &booking.TimeSlot, &booking.CreatedAt,
+		&booking.ServiceName, &booking.Duration, &booking.Price,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("booking not found")
+		}
+		return nil, fmt.Errorf("failed to get booking: %v", err)
+	}
+
+	return &booking, nil
+}
+
+// CreateBookingWithReference creates a booking with generated reference
+func CreateBookingWithReference(clientName, email, phone string, serviceID int, date, timeSlot string) (*models.BookingDetail, error) {
+	// Generate reference
+	reference, err := GenerateBookingReference(date)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate reference: %v", err)
+	}
+
+	// Insert booking
+	result, err := DB.Exec(`
+		INSERT INTO bookings (reference, client_name, email, phone, service_id, date, time_slot)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, reference, clientName, email, phone, serviceID, date, timeSlot)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create booking: %v", err)
+	}
+
+	bookingID, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get booking ID: %v", err)
+	}
+
+	// Get the created booking with details
+	return GetBookingByID(int(bookingID))
 }
 
 // CloseDB closes the database connection

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"massage-booking/backend/database"
+	"massage-booking/backend/email"
 	"massage-booking/backend/models"
 )
 
@@ -55,7 +56,7 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 		FROM temporary_reservations 
 		WHERE id = ? AND expires_at > datetime('now')
 	`, req.ReservationID).Scan(&slotID, &expiresAt)
-	
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "Reservation not found or expired", http.StatusNotFound)
@@ -75,12 +76,20 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	// Create booking
+	// Generate booking reference
+	reference, err := database.GenerateBookingReference(req.Date)
+	if err != nil {
+		log.Printf("Error generating booking reference: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Create booking with reference
 	result, err := tx.Exec(`
-		INSERT INTO bookings (client_name, email, phone, service_id, date, time_slot) 
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, req.ClientName, req.Email, req.Phone, req.ServiceID, req.Date, req.TimeSlot)
-	
+		INSERT INTO bookings (reference, client_name, email, phone, service_id, date, time_slot)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, reference, req.ClientName, req.Email, req.Phone, req.ServiceID, req.Date, req.TimeSlot)
+
 	if err != nil {
 		log.Printf("Error creating booking: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -117,27 +126,46 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create response
-	booking := models.Booking{
-		ID:         int(bookingID),
-		ClientName: req.ClientName,
-		Email:      req.Email,
-		Phone:      req.Phone,
-		ServiceID:  req.ServiceID,
-		Date:       req.Date,
-		TimeSlot:   req.TimeSlot,
-		CreatedAt:  time.Now(),
+	// Get the created booking with full details for response
+	bookingDetail, err := database.GetBookingByID(int(bookingID))
+	if err != nil {
+		log.Printf("Error getting booking details: %v", err)
+		// Fallback to basic response
+		booking := models.Booking{
+			ID:         int(bookingID),
+			Reference:  reference,
+			ClientName: req.ClientName,
+			Email:      req.Email,
+			Phone:      req.Phone,
+			ServiceID:  req.ServiceID,
+			Date:       req.Date,
+			TimeSlot:   req.TimeSlot,
+			CreatedAt:  time.Now(),
+		}
+
+		if err := json.NewEncoder(w).Encode(booking); err != nil {
+			log.Printf("Error encoding booking response: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("Created booking %d (reference: %s) for %s (%s) on %s at %s",
+			bookingID, reference, req.ClientName, req.Email, req.Date, req.TimeSlot)
+		return
 	}
 
-	// Send response
-	if err := json.NewEncoder(w).Encode(booking); err != nil {
+	// Send confirmation email asynchronously
+	email.SendEmailAsync(bookingDetail)
+
+	// Send response with booking details
+	if err := json.NewEncoder(w).Encode(bookingDetail); err != nil {
 		log.Printf("Error encoding booking response: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("Created booking %d for %s (%s) on %s at %s", 
-		bookingID, req.ClientName, req.Email, req.Date, req.TimeSlot)
+	log.Printf("Created booking %d (reference: %s) for %s (%s) on %s at %s",
+		bookingID, reference, req.ClientName, req.Email, req.Date, req.TimeSlot)
 }
 
 // validateBookingRequest validates the booking request fields

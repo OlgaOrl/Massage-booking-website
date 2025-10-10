@@ -4,11 +4,28 @@ import "time"
 
 // Booking represents a confirmed booking
 type Booking struct {
+	ID         int       `json:"id" db:"id"`
+	Reference  string    `json:"reference" db:"reference"`
+	ClientName string    `json:"client_name" db:"client_name"`
+	Email      string    `json:"email" db:"email"`
+	Phone      string    `json:"phone" db:"phone"`
+	ServiceID  int       `json:"service_id" db:"service_id"`
+	Date       string    `json:"date" db:"date"`
+	TimeSlot   string    `json:"time_slot" db:"time_slot"`
+	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+}
+
+// BookingDetail represents a booking with service details for confirmation page
+type BookingDetail struct {
 	ID          int       `json:"id" db:"id"`
+	Reference   string    `json:"reference" db:"reference"`
 	ClientName  string    `json:"client_name" db:"client_name"`
 	Email       string    `json:"email" db:"email"`
 	Phone       string    `json:"phone" db:"phone"`
 	ServiceID   int       `json:"service_id" db:"service_id"`
+	ServiceName string    `json:"service_name" db:"service_name"`
+	Duration    int       `json:"duration" db:"duration"`
+	Price       float64   `json:"price" db:"price"`
 	Date        string    `json:"date" db:"date"`
 	TimeSlot    string    `json:"time_slot" db:"time_slot"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
