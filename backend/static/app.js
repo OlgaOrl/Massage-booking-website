@@ -3,8 +3,18 @@ let massageTypes = [];
 let selectedService = null;
 let selectedDate = null;
 let selectedTime = null;
+let selectedSlotId = null;
 let currentMonth = new Date();
 let timeSlots = [];
+
+// Story #2 state
+let currentReservation = null;
+let reservationTimer = null;
+let formValidation = {
+    name: false,
+    email: false,
+    phone: false
+};
 
 // DOM elements
 const servicesContainer = document.getElementById('services-container');
@@ -20,10 +30,24 @@ const loading = document.getElementById('loading');
 const errorMessage = document.getElementById('error-message');
 const errorText = document.getElementById('error-text');
 
+// Story #2 DOM elements
+const bookingFormSection = document.getElementById('booking-form-section');
+const bookingForm = document.getElementById('booking-form');
+const reservationTimerElement = document.getElementById('reservation-timer');
+const timerDisplay = document.getElementById('timer-display');
+const confirmBookingBtn = document.getElementById('confirm-booking-btn');
+const clientNameInput = document.getElementById('client-name');
+const clientEmailInput = document.getElementById('client-email');
+const clientPhoneInput = document.getElementById('client-phone');
+const nameError = document.getElementById('name-error');
+const emailError = document.getElementById('email-error');
+const phoneError = document.getElementById('phone-error');
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     loadMassageTypes();
     setupEventListeners();
+    setupFormValidation();
 });
 
 // Setup event listeners
@@ -256,6 +280,7 @@ function renderTimeSlots() {
 
 function selectTimeSlot(slot) {
     selectedTime = slot;
+    selectedSlotId = slot.id; // Store slot ID for reservation
 
     // Update time slots display
     document.querySelectorAll('.time-slot').forEach(timeSlot => {
@@ -327,11 +352,13 @@ function resetBooking() {
     selectedService = null;
     selectedDate = null;
     selectedTime = null;
+    selectedSlotId = null;
 
     // Hide sections
     calendarSection.style.display = 'none';
     timeSlotsSection.style.display = 'none';
     selectionSummary.style.display = 'none';
+    bookingFormSection.style.display = 'none';
 
     // Clear selections
     document.querySelectorAll('.service-card').forEach(card => {
@@ -340,4 +367,397 @@ function resetBooking() {
 
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Story #2 Functions
+
+// Show booking form and create reservation
+async function showBookingForm() {
+    if (!selectedSlotId) {
+        showError('Please select a time slot first');
+        return;
+    }
+
+    try {
+        showLoading(true);
+
+        // Create temporary reservation
+        const response = await fetch('/api/reservations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                slot_id: selectedSlotId
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.text();
+            throw new Error(errorData || 'Failed to create reservation');
+        }
+
+        const reservation = await response.json();
+        currentReservation = reservation;
+
+        // Update booking summary
+        updateBookingSummary();
+
+        // Show booking form
+        calendarSection.style.display = 'none';
+        bookingFormSection.style.display = 'block';
+
+        // Start countdown timer
+        startReservationTimer(reservation.expires_in_seconds);
+
+        // Clear form
+        resetForm();
+
+        showLoading(false);
+
+        // Scroll to form
+        bookingFormSection.scrollIntoView({ behavior: 'smooth' });
+
+    } catch (error) {
+        showLoading(false);
+        showError('Failed to reserve time slot: ' + error.message);
+    }
+}
+
+// Update booking summary in the form
+function updateBookingSummary() {
+    if (!selectedService || !selectedDate || !selectedTime) return;
+
+    const date = new Date(selectedDate);
+    const formattedDate = date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+
+    document.getElementById('booking-summary-service').textContent = selectedService.name;
+    document.getElementById('booking-summary-date').textContent = formattedDate;
+    document.getElementById('booking-summary-time').textContent = selectedTime.time;
+    document.getElementById('booking-summary-price').textContent = selectedService.price;
+}
+
+// Start reservation countdown timer
+function startReservationTimer(seconds) {
+    let timeLeft = seconds;
+
+    // Clear any existing timer
+    if (reservationTimer) {
+        clearInterval(reservationTimer);
+    }
+
+    // Update timer display immediately
+    updateTimerDisplay(timeLeft);
+
+    reservationTimer = setInterval(() => {
+        timeLeft--;
+        updateTimerDisplay(timeLeft);
+
+        // Change color when less than 2 minutes
+        if (timeLeft <= 120) {
+            reservationTimerElement.classList.add('warning');
+        }
+
+        // Timer expired
+        if (timeLeft <= 0) {
+            clearInterval(reservationTimer);
+            handleReservationExpired();
+        }
+    }, 1000);
+}
+
+// Update timer display
+function updateTimerDisplay(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    timerDisplay.textContent = `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+// Handle reservation expiration
+function handleReservationExpired() {
+    showError('Your reservation has expired. Please select a new time slot.');
+    cancelBooking();
+}
+
+// Setup form validation
+function setupFormValidation() {
+    // Name validation
+    clientNameInput.addEventListener('input', () => validateName());
+    clientNameInput.addEventListener('blur', () => validateName());
+
+    // Email validation
+    clientEmailInput.addEventListener('input', () => validateEmail());
+    clientEmailInput.addEventListener('blur', () => validateEmail());
+
+    // Phone validation
+    clientPhoneInput.addEventListener('input', () => validatePhone());
+    clientPhoneInput.addEventListener('blur', () => validatePhone());
+
+    // Form submission
+    bookingForm.addEventListener('submit', handleFormSubmit);
+}
+
+// Validation functions
+function validateName() {
+    const name = clientNameInput.value.trim();
+    let isValid = true;
+    let errorMessage = '';
+
+    if (!name) {
+        isValid = false;
+        errorMessage = 'Name is required';
+    } else if (name.length < 2) {
+        isValid = false;
+        errorMessage = 'Name must be at least 2 characters';
+    } else if (!/^[a-zA-Z\s]+$/.test(name)) {
+        isValid = false;
+        errorMessage = 'Name should contain only letters and spaces';
+    }
+
+    formValidation.name = isValid;
+    nameError.textContent = errorMessage;
+    clientNameInput.classList.toggle('error', !isValid);
+    clientNameInput.classList.toggle('valid', isValid && name.length > 0);
+
+    updateSubmitButton();
+    return isValid;
+}
+
+function validateEmail() {
+    const email = clientEmailInput.value.trim();
+    let isValid = true;
+    let errorMessage = '';
+
+    if (!email) {
+        isValid = false;
+        errorMessage = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        isValid = false;
+        errorMessage = 'Please enter a valid email';
+    }
+
+    formValidation.email = isValid;
+    emailError.textContent = errorMessage;
+    clientEmailInput.classList.toggle('error', !isValid);
+    clientEmailInput.classList.toggle('valid', isValid && email.length > 0);
+
+    updateSubmitButton();
+    return isValid;
+}
+
+function validatePhone() {
+    const phone = clientPhoneInput.value.trim();
+    let isValid = true;
+    let errorMessage = '';
+
+    if (!phone) {
+        isValid = false;
+        errorMessage = 'Phone is required';
+    } else if (!/^\+?[\d\s\-()]{8,}$/.test(phone)) {
+        isValid = false;
+        errorMessage = 'Please enter a valid phone number';
+    }
+
+    formValidation.phone = isValid;
+    phoneError.textContent = errorMessage;
+    clientPhoneInput.classList.toggle('error', !isValid);
+    clientPhoneInput.classList.toggle('valid', isValid && phone.length > 0);
+
+    updateSubmitButton();
+    return isValid;
+}
+
+// Update submit button state
+function updateSubmitButton() {
+    const allValid = formValidation.name && formValidation.email && formValidation.phone;
+    confirmBookingBtn.disabled = !allValid;
+}
+
+// Handle form submission
+async function handleFormSubmit(event) {
+    event.preventDefault();
+
+    // Validate all fields
+    const nameValid = validateName();
+    const emailValid = validateEmail();
+    const phoneValid = validatePhone();
+
+    if (!nameValid || !emailValid || !phoneValid) {
+        return;
+    }
+
+    if (!currentReservation) {
+        showError('No active reservation found');
+        return;
+    }
+
+    try {
+        confirmBookingBtn.disabled = true;
+        confirmBookingBtn.textContent = 'Creating Booking...';
+
+        const bookingData = {
+            reservation_id: currentReservation.reservation_id,
+            client_name: clientNameInput.value.trim(),
+            email: clientEmailInput.value.trim(),
+            phone: clientPhoneInput.value.trim(),
+            service_id: selectedService.id,
+            date: selectedDate,
+            time_slot: selectedTime.time
+        };
+
+        const response = await fetch('/api/bookings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(bookingData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.text();
+            throw new Error(errorData || 'Failed to create booking');
+        }
+
+        const booking = await response.json();
+
+        // Clear timer
+        if (reservationTimer) {
+            clearInterval(reservationTimer);
+        }
+
+        // Show success message (placeholder for Story #3)
+        showSuccess('Booking confirmed! Your appointment has been scheduled.');
+
+        // Reset application state
+        resetApplicationState();
+
+    } catch (error) {
+        showError('Failed to create booking: ' + error.message);
+        confirmBookingBtn.disabled = false;
+        confirmBookingBtn.textContent = 'Confirm Booking';
+    }
+}
+
+// Cancel booking and return to calendar
+function cancelBooking() {
+    // Cancel reservation if exists
+    if (currentReservation) {
+        cancelReservation();
+    }
+
+    // Clear timer
+    if (reservationTimer) {
+        clearInterval(reservationTimer);
+    }
+
+    // Hide form and show calendar
+    bookingFormSection.style.display = 'none';
+    calendarSection.style.display = 'block';
+
+    // Reset form
+    resetForm();
+}
+
+// Cancel reservation on server
+async function cancelReservation() {
+    if (!currentReservation) return;
+
+    try {
+        await fetch(`/api/reservations/${currentReservation.reservation_id}`, {
+            method: 'DELETE'
+        });
+    } catch (error) {
+        console.error('Failed to cancel reservation:', error);
+    }
+
+    currentReservation = null;
+}
+
+// Reset form
+function resetForm() {
+    bookingForm.reset();
+    formValidation = { name: false, email: false, phone: false };
+
+    // Clear error messages
+    nameError.textContent = '';
+    emailError.textContent = '';
+    phoneError.textContent = '';
+
+    // Clear validation classes
+    clientNameInput.classList.remove('error', 'valid');
+    clientEmailInput.classList.remove('error', 'valid');
+    clientPhoneInput.classList.remove('error', 'valid');
+
+    // Reset button
+    confirmBookingBtn.disabled = true;
+    confirmBookingBtn.textContent = 'Confirm Booking';
+
+    // Reset timer display
+    reservationTimerElement.classList.remove('warning');
+}
+
+// Reset application state
+function resetApplicationState() {
+    selectedService = null;
+    selectedDate = null;
+    selectedTime = null;
+    selectedSlotId = null;
+    currentReservation = null;
+
+    // Hide all sections
+    calendarSection.style.display = 'none';
+    bookingFormSection.style.display = 'none';
+    selectionSummary.style.display = 'none';
+    timeSlotsSection.style.display = 'none';
+
+    // Clear selections
+    document.querySelectorAll('.service-card.selected').forEach(card => {
+        card.classList.remove('selected');
+    });
+
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Show success message
+function showSuccess(message) {
+    // Create success message element (reuse error message styling)
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-message';
+    successDiv.innerHTML = `
+        <p>${message}</p>
+        <button onclick="this.parentElement.remove()">Close</button>
+    `;
+    successDiv.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: #4CAF50;
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        text-align: center;
+    `;
+
+    document.body.appendChild(successDiv);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (successDiv.parentElement) {
+            successDiv.remove();
+        }
+    }, 5000);
+}
+
+// Placeholder function for backward compatibility
+function bookAppointment() {
+    showBookingForm();
 }
