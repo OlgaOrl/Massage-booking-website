@@ -4,6 +4,8 @@
 *.dll
 *.so
 *.dylib
+massage-booking
+massage-booking.exe
 
 # Test binary, built with `go test -c`
 *.test
