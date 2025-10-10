@@ -58,7 +58,51 @@
                         <p><strong>Duration:</strong> <span id="summary-duration"></span> minutes</p>
                         <p><strong>Price:</strong> €<span id="summary-price"></span></p>
                     </div>
-                    <button class="book-button" onclick="bookAppointment()">Book Appointment</button>
+                    <button class="book-button" id="continue-booking-btn" onclick="showBookingForm()">Continue to Booking</button>
+                </div>
+            </section>
+
+            <!-- Booking Form Section -->
+            <section class="booking-form-section" id="booking-form-section" style="display: none;">
+                <div class="booking-form-container">
+                    <div class="reservation-timer" id="reservation-timer">
+                        <p>Time remaining: <span id="timer-display">10:00</span></p>
+                    </div>
+
+                    <h2>Complete Your Booking</h2>
+
+                    <div class="booking-summary">
+                        <h3>Appointment Details</h3>
+                        <p><strong>Service:</strong> <span id="booking-summary-service"></span></p>
+                        <p><strong>Date:</strong> <span id="booking-summary-date"></span></p>
+                        <p><strong>Time:</strong> <span id="booking-summary-time"></span></p>
+                        <p><strong>Price:</strong> €<span id="booking-summary-price"></span></p>
+                    </div>
+
+                    <form id="booking-form" class="booking-form">
+                        <div class="form-group">
+                            <label for="client-name">Full Name *</label>
+                            <input type="text" id="client-name" name="client_name" required>
+                            <span class="error-message" id="name-error"></span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="client-email">Email Address *</label>
+                            <input type="email" id="client-email" name="email" required>
+                            <span class="error-message" id="email-error"></span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="client-phone">Phone Number *</label>
+                            <input type="tel" id="client-phone" name="phone" required>
+                            <span class="error-message" id="phone-error"></span>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="cancel-button" onclick="cancelBooking()">Cancel</button>
+                            <button type="submit" class="confirm-button" id="confirm-booking-btn" disabled>Confirm Booking</button>
+                        </div>
+                    </form>
                 </div>
             </section>
         </main>

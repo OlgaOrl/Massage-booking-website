@@ -68,7 +68,7 @@ func createTables() error {
 		return fmt.Errorf("failed to create time_slots table: %v", err)
 	}
 
-	// Create bookings table for future stories (not used in Story #1)
+	// Create bookings table for Story #2
 	bookingsTable := `
 	CREATE TABLE IF NOT EXISTS bookings (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,6 +84,26 @@ func createTables() error {
 
 	if _, err := DB.Exec(bookingsTable); err != nil {
 		return fmt.Errorf("failed to create bookings table: %v", err)
+	}
+
+	// Create temporary_reservations table for Story #2
+	reservationsTable := `
+	CREATE TABLE IF NOT EXISTS temporary_reservations (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		slot_id INTEGER NOT NULL,
+		reserved_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		expires_at DATETIME NOT NULL,
+		FOREIGN KEY (slot_id) REFERENCES time_slots (id)
+	);`
+
+	if _, err := DB.Exec(reservationsTable); err != nil {
+		return fmt.Errorf("failed to create temporary_reservations table: %v", err)
+	}
+
+	// Create index for cleanup queries
+	indexQuery := `CREATE INDEX IF NOT EXISTS idx_expires_at ON temporary_reservations(expires_at);`
+	if _, err := DB.Exec(indexQuery); err != nil {
+		return fmt.Errorf("failed to create index on temporary_reservations: %v", err)
 	}
 
 	return nil
@@ -128,26 +148,32 @@ func seedData() error {
 	return nil
 }
 
-// generateTimeSlots creates time slots for the next 30 days
+// generateTimeSlots creates time slots for the next 30 days based on service duration
 func generateTimeSlots() error {
 	// Create a new random source for Go 1.20+
 	source := rand.NewSource(time.Now().UnixNano())
 	rng := rand.New(source)
 
-	// Get all massage type IDs
-	rows, err := DB.Query("SELECT id FROM massage_types")
+	// Get all massage types with their durations
+	rows, err := DB.Query("SELECT id, duration FROM massage_types")
 	if err != nil {
 		return fmt.Errorf("failed to get massage types: %v", err)
 	}
 	defer rows.Close()
 
-	var serviceIDs []int
+	var services []struct {
+		ID       int
+		Duration int
+	}
 	for rows.Next() {
-		var id int
-		if err := rows.Scan(&id); err != nil {
-			return fmt.Errorf("failed to scan service ID: %v", err)
+		var service struct {
+			ID       int
+			Duration int
 		}
-		serviceIDs = append(serviceIDs, id)
+		if err := rows.Scan(&service.ID, &service.Duration); err != nil {
+			return fmt.Errorf("failed to scan service: %v", err)
+		}
+		services = append(services, service)
 	}
 
 	// Generate slots for next 30 days
@@ -156,21 +182,32 @@ func generateTimeSlots() error {
 		currentDate := startDate.AddDate(0, 0, day)
 		dateStr := currentDate.Format("2006-01-02")
 
-		// Generate time slots from 09:00 to 18:00 with 15-minute intervals
-		for hour := 9; hour < 18; hour++ {
-			for minute := 0; minute < 60; minute += 15 {
+		// Generate time slots for each service based on its duration
+		for _, service := range services {
+			// Calculate how many slots can fit in a day based on service duration
+			// Working hours: 09:00 to 18:00 (9 hours = 540 minutes)
+			workingMinutes := 540
+			slotsPerDay := workingMinutes / service.Duration
+
+			// Generate slots with proper spacing
+			for slot := 0; slot < slotsPerDay; slot++ {
+				// Calculate start time for this slot
+				startMinutes := 9*60 + slot*service.Duration // Start from 09:00
+				if startMinutes >= 18*60 {                   // Don't go past 18:00
+					break
+				}
+
+				hour := startMinutes / 60
+				minute := startMinutes % 60
 				timeStr := fmt.Sprintf("%02d:%02d", hour, minute)
 
-				// Create slots for each service
-				for _, serviceID := range serviceIDs {
-					// Randomly make some slots unavailable (about 30% booked)
-					available := rng.Float32() > 0.3
+				// Randomly make some slots unavailable (about 30% booked)
+				available := rng.Float32() > 0.3
 
-					_, err := DB.Exec("INSERT INTO time_slots (date, time, service_id, available) VALUES (?, ?, ?, ?)",
-						dateStr, timeStr, serviceID, available)
-					if err != nil {
-						return fmt.Errorf("failed to insert time slot: %v", err)
-					}
+				_, err := DB.Exec("INSERT INTO time_slots (date, time, service_id, available) VALUES (?, ?, ?, ?)",
+					dateStr, timeStr, service.ID, available)
+				if err != nil {
+					return fmt.Errorf("failed to insert time slot: %v", err)
 				}
 			}
 		}
@@ -199,9 +236,15 @@ func GetMassageTypes() ([]models.MassageType, error) {
 	return massageTypes, nil
 }
 
-// GetTimeSlots retrieves time slots for a specific date and service
+// GetTimeSlots retrieves time slots for a specific date and service, excluding reserved slots
 func GetTimeSlots(date string, serviceID int) ([]models.TimeSlot, error) {
-	query := "SELECT id, date, time, service_id, available FROM time_slots WHERE date = ? AND service_id = ? ORDER BY time"
+	query := `
+		SELECT ts.id, ts.date, ts.time, ts.service_id, ts.available
+		FROM time_slots ts
+		LEFT JOIN temporary_reservations tr ON ts.id = tr.slot_id AND tr.expires_at > datetime('now')
+		WHERE ts.date = ? AND ts.service_id = ? AND tr.id IS NULL
+		ORDER BY ts.time
+	`
 	rows, err := DB.Query(query, date, serviceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query time slots: %v", err)
@@ -218,6 +261,109 @@ func GetTimeSlots(date string, serviceID int) ([]models.TimeSlot, error) {
 	}
 
 	return timeSlots, nil
+}
+
+// CleanupExpiredReservations removes expired reservations
+func CleanupExpiredReservations() error {
+	query := "DELETE FROM temporary_reservations WHERE expires_at < datetime('now')"
+	result, err := DB.Exec(query)
+	if err != nil {
+		return fmt.Errorf("failed to cleanup expired reservations: %v", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err == nil && rowsAffected > 0 {
+		log.Printf("Cleaned up %d expired reservations", rowsAffected)
+	}
+
+	return nil
+}
+
+// StartCleanupJob runs cleanup every minute to remove expired reservations
+func StartCleanupJob() {
+	ticker := time.NewTicker(1 * time.Minute)
+	go func() {
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := CleanupExpiredReservations(); err != nil {
+				log.Printf("Error during cleanup: %v", err)
+			}
+		}
+	}()
+	log.Println("Started cleanup job for expired reservations")
+}
+
+// CreateReservation creates a temporary reservation for a slot
+func CreateReservation(slotID int) (int, time.Time, error) {
+	// Check if slot exists and is available
+	var available bool
+	err := DB.QueryRow("SELECT available FROM time_slots WHERE id = ?", slotID).Scan(&available)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, time.Time{}, fmt.Errorf("slot not found")
+		}
+		return 0, time.Time{}, fmt.Errorf("failed to check slot availability: %v", err)
+	}
+
+	if !available {
+		return 0, time.Time{}, fmt.Errorf("slot is not available")
+	}
+
+	// Check if slot is already reserved
+	var count int
+	err = DB.QueryRow("SELECT COUNT(*) FROM temporary_reservations WHERE slot_id = ? AND expires_at > datetime('now')", slotID).Scan(&count)
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("failed to check existing reservations: %v", err)
+	}
+
+	if count > 0 {
+		return 0, time.Time{}, fmt.Errorf("slot is already reserved")
+	}
+
+	// Create reservation with 10-minute expiration
+	expiresAt := time.Now().Add(10 * time.Minute)
+	result, err := DB.Exec("INSERT INTO temporary_reservations (slot_id, expires_at) VALUES (?, ?)",
+		slotID, expiresAt.Format("2006-01-02 15:04:05"))
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("failed to create reservation: %v", err)
+	}
+
+	reservationID, err := result.LastInsertId()
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("failed to get reservation ID: %v", err)
+	}
+
+	return int(reservationID), expiresAt, nil
+}
+
+// DeleteReservation removes a temporary reservation
+func DeleteReservation(reservationID int) error {
+	result, err := DB.Exec("DELETE FROM temporary_reservations WHERE id = ?", reservationID)
+	if err != nil {
+		return fmt.Errorf("failed to delete reservation: %v", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check affected rows: %v", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("reservation not found")
+	}
+
+	return nil
+}
+
+// IsSlotReserved checks if a slot is temporarily reserved
+func IsSlotReserved(slotID int) (bool, error) {
+	var count int
+	err := DB.QueryRow("SELECT COUNT(*) FROM temporary_reservations WHERE slot_id = ? AND expires_at > datetime('now')", slotID).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check slot reservation: %v", err)
+	}
+
+	return count > 0, nil
 }
 
 // CloseDB closes the database connection

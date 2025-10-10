@@ -17,6 +17,9 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
+	// Start cleanup job for expired reservations
+	database.StartCleanupJob()
+
 	// Set up graceful shutdown
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -37,7 +40,7 @@ func main() {
 	log.Printf("Server starting on port %s", port)
 	log.Printf("Static files served from: /static")
 	log.Printf("API endpoints available at: /api")
-	
+
 	if err := http.ListenAndServe(port, nil); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
@@ -48,6 +51,11 @@ func setupRoutes() {
 	// API routes
 	http.HandleFunc("/api/massage-types", handlers.GetMassageTypesHandler)
 	http.HandleFunc("/api/slots", handlers.GetSlotsHandler)
+
+	// Story #2 routes
+	http.HandleFunc("/api/reservations", handlers.CreateReservation)
+	http.HandleFunc("/api/reservations/", handlers.DeleteReservation)
+	http.HandleFunc("/api/bookings", handlers.CreateBooking)
 
 	// Static file server for frontend
 	fs := http.FileServer(http.Dir("./backend/static/"))
