@@ -57,15 +57,21 @@ func setupRoutes() {
 	http.HandleFunc("/api/reservations/", handlers.DeleteReservation)
 	http.HandleFunc("/api/bookings", handlers.CreateBooking)
 
+	// Story #3 routes
+	http.HandleFunc("/api/bookings/", handlers.GetBooking)
+
 	// Static file server for frontend
 	fs := http.FileServer(http.Dir("./backend/static/"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	// Serve index.html at root
+	// Serve specific pages
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
+		switch r.URL.Path {
+		case "/":
 			http.ServeFile(w, r, "./backend/static/index.html")
-		} else {
+		case "/confirmation.html":
+			http.ServeFile(w, r, "./backend/static/confirmation.html")
+		default:
 			http.NotFound(w, r)
 		}
 	})

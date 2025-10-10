@@ -630,11 +630,10 @@ async function handleFormSubmit(event) {
             clearInterval(reservationTimer);
         }
 
-        // Show success message (placeholder for Story #3)
-        showSuccess('Booking confirmed! Your appointment has been scheduled.');
+        // Redirect to confirmation page with booking ID
+        window.location.href = `/confirmation.html?id=${booking.id}`;
 
-        // Reset application state
-        resetApplicationState();
+        // Note: No need to reset state as we're navigating away
 
     } catch (error) {
         showError('Failed to create booking: ' + error.message);

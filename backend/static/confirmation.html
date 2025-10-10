@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Confirmation - Massage Booking</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Massage Booking</h1>
+        </header>
+
+        <main>
+            <!-- Loading State -->
+            <div id="loading-section" class="confirmation-section">
+                <div class="loading-spinner"></div>
+                <p>Loading your booking details...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-section" class="confirmation-section" style="display: none;">
+                <div class="error-icon">❌</div>
+                <h2>Booking Not Found</h2>
+                <p>We couldn't find your booking. Please check your booking reference or try again.</p>
+                <button onclick="goHome()" class="back-home-button">Back to Home</button>
+            </div>
+
+            <!-- Success State -->
+            <div id="success-section" class="confirmation-section" style="display: none;">
+                <div class="success-header">
+                    <div class="success-icon">✅</div>
+                    <h2>Booking Successful!</h2>
+                    <p>Your massage appointment has been confirmed.</p>
+                </div>
+
+                <div class="booking-reference">
+                    <h3>Booking Reference</h3>
+                    <div class="reference-number" id="booking-reference">-</div>
+                    <p class="reference-note">Please save this reference number for your records</p>
+                </div>
+
+                <div class="booking-details-card">
+                    <h3>Appointment Details</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Service:</span>
+                            <span class="detail-value" id="service-name">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Duration:</span>
+                            <span class="detail-value" id="service-duration">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Price:</span>
+                            <span class="detail-value" id="service-price">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Date:</span>
+                            <span class="detail-value" id="booking-date">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Time:</span>
+                            <span class="detail-value" id="booking-time">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="booking-details-card">
+                    <h3>Customer Information</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Name:</span>
+                            <span class="detail-value" id="client-name">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Email:</span>
+                            <span class="detail-value" id="client-email">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Phone:</span>
+                            <span class="detail-value" id="client-phone">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="confirmation-actions">
+                    <button onclick="goHome()" class="back-home-button">Back to Home</button>
+                </div>
+
+                <div class="email-notification">
+                    <p>📧 A confirmation email has been sent to your email address with all the details.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="confirmation.js"></script>
+</body>
+</html>
