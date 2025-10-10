@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  massage-booking:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - massage_data:/data
+      - ./massage_booking.db:/root/massage_booking.db
+    environment:
+      - GIN_MODE=release
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/massage-types"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  massage_data:
+    driver: local

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Massage Booking - Book Your Appointment</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Massage Booking</h1>
+            <p>Select a massage service and find your perfect appointment time</p>
+        </header>
+
+        <main>
+            <!-- Service Selection Section -->
+            <section class="services-section">
+                <h2>Choose Your Massage Service</h2>
+                <div id="services-container" class="services-grid">
+                    <!-- Services will be loaded here dynamically -->
+                </div>
+            </section>
+
+            <!-- Calendar Section -->
+            <section class="calendar-section" id="calendar-section" style="display: none;">
+                <h2>Select Your Appointment Time</h2>
+                <div class="selected-service-info" id="selected-service-info">
+                    <!-- Selected service info will be displayed here -->
+                </div>
+                
+                <div class="calendar-container">
+                    <div class="calendar-header">
+                        <button id="prev-month" class="nav-button">&lt;</button>
+                        <h3 id="current-month"></h3>
+                        <button id="next-month" class="nav-button">&gt;</button>
+                    </div>
+                    <div class="calendar-grid" id="calendar-grid">
+                        <!-- Calendar days will be generated here -->
+                    </div>
+                </div>
+
+                <!-- Time Slots Section -->
+                <div class="time-slots-section" id="time-slots-section" style="display: none;">
+                    <h3>Available Times for <span id="selected-date"></span></h3>
+                    <div class="time-slots-grid" id="time-slots-grid">
+                        <!-- Time slots will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Selection Summary -->
+                <div class="selection-summary" id="selection-summary" style="display: none;">
+                    <h3>Your Selection</h3>
+                    <div class="summary-content">
+                        <p><strong>Service:</strong> <span id="summary-service"></span></p>
+                        <p><strong>Date:</strong> <span id="summary-date"></span></p>
+                        <p><strong>Time:</strong> <span id="summary-time"></span></p>
+                        <p><strong>Duration:</strong> <span id="summary-duration"></span> minutes</p>
+                        <p><strong>Price:</strong> €<span id="summary-price"></span></p>
+                    </div>
+                    <button class="book-button" onclick="bookAppointment()">Book Appointment</button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Loading indicator -->
+        <div class="loading" id="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+
+        <!-- Error message -->
+        <div class="error-message" id="error-message" style="display: none;">
+            <p id="error-text"></p>
+            <button onclick="hideError()">Close</button>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
