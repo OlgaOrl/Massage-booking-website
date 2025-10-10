@@ -2,14 +2,25 @@
 
 A modern web application for booking massage appointments online. This system allows customers to browse available massage services, view pricing and duration, and select appointment times from an interactive calendar.
 
-## Features (Story #1)
+## Features
 
+### Story #1 ✅ - Browse and Select Appointments
 - **Service Selection**: Browse available massage services with detailed information
 - **Service Details**: View duration (in minutes) and pricing (in euros) for each service
 - **Interactive Calendar**: Navigate through the next 30 days to find available appointments
 - **Visual Availability**: Clear visual distinction between available and booked time slots
+- **Smart Scheduling**: Time slots generated based on service duration (60min=hourly, 90min=1.5h intervals)
 - **Responsive Design**: Mobile-friendly interface that works on all devices
 - **Real-time Data**: Live availability checking with SQLite database
+
+### Story #2 ✅ - Complete Booking with Contact Information
+- **Temporary Reservations**: 10-minute slot reservation system to prevent double-booking
+- **Contact Form**: Collect customer name, email, and phone number
+- **Real-time Validation**: Instant field validation with clear error messages
+- **Countdown Timer**: Visual timer showing reservation expiration
+- **Secure Booking**: Transaction-based booking confirmation
+- **Auto-cleanup**: Background job removes expired reservations
+- **Form Validation**: Both frontend and backend validation for data integrity
 
 ## Tech Stack
 
@@ -93,19 +104,86 @@ GET /api/slots?date=2025-10-15&service_id=1
   {
     "id": 1,
     "date": "2025-10-15",
-    "time": "10:00",
+    "time": "09:00",
     "service_id": 1,
     "available": true
   },
   {
     "id": 2,
     "date": "2025-10-15",
-    "time": "10:15",
+    "time": "10:00",
     "service_id": 1,
-    "available": false
+    "available": true
   }
 ]
 ```
+
+**Note**: Time slots are generated based on service duration:
+- 45-minute services: slots every 45 minutes (09:00, 09:45, 10:30...)
+- 60-minute services: slots every hour (09:00, 10:00, 11:00...)
+- 90-minute services: slots every 1.5 hours (09:00, 10:30, 12:00...)
+
+### POST /api/reservations
+
+Creates a temporary 10-minute reservation for a time slot.
+
+**Request Body**:
+```json
+{
+  "slot_id": 123
+}
+```
+
+**Response**:
+```json
+{
+  "reservation_id": 456,
+  "expires_at": "2025-10-15T10:10:00Z",
+  "expires_in_seconds": 600
+}
+```
+
+### DELETE /api/reservations/:id
+
+Cancels a temporary reservation.
+
+**Response**: 204 No Content
+
+### POST /api/bookings
+
+Creates a confirmed booking with customer contact information.
+
+**Request Body**:
+```json
+{
+  "reservation_id": 456,
+  "client_name": "John Doe",
+  "email": "john@example.com",
+  "phone": "+372 5123 4567",
+  "service_id": 1,
+  "date": "2025-10-15",
+  "time_slot": "10:00"
+}
+```
+
+**Response**:
+```json
+{
+  "id": 789,
+  "client_name": "John Doe",
+  "email": "john@example.com",
+  "phone": "+372 5123 4567",
+  "service_id": 1,
+  "date": "2025-10-15",
+  "time_slot": "10:00",
+  "created_at": "2025-10-15T09:55:30Z"
+}
+```
+
+**Validation Rules**:
+- **Name**: Required, minimum 2 characters, letters and spaces only
+- **Email**: Required, valid email format
+- **Phone**: Required, valid phone number format
 
 ## User Interface
 
