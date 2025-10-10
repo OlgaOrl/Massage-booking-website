@@ -22,6 +22,14 @@ A modern web application for booking massage appointments online. This system al
 - **Auto-cleanup**: Background job removes expired reservations
 - **Form Validation**: Both frontend and backend validation for data integrity
 
+### Story #3 ✅ - Receive Booking Confirmation
+- **Confirmation Page**: Professional booking confirmation with all details
+- **Unique References**: Auto-generated booking reference numbers (BK-YYYYMMDD-XXX)
+- **Email Notifications**: HTML email templates with booking details
+- **Error Handling**: Graceful handling of invalid or missing bookings
+- **Navigation**: "Back to Home" button for easy return to main page
+- **Email Fallback**: Console logging when SMTP is not configured
+
 ## Tech Stack
 
 - **Backend**: Go (Golang) with standard library `net/http`
@@ -60,6 +68,21 @@ The application will automatically:
 - Create all necessary tables
 - Seed sample data (4 massage types, 30 days of time slots)
 - Start the web server on port 8080
+
+### Email Configuration (Optional)
+
+For email notifications, set environment variables:
+
+```bash
+export SMTP_HOST=smtp.gmail.com
+export SMTP_PORT=587
+export SMTP_USER=your-email@gmail.com
+export SMTP_PASS=your-app-password
+export FROM_EMAIL=noreply@massagebooking.com
+export FROM_NAME="Massage Booking Team"
+```
+
+**Note**: If SMTP is not configured, emails will be logged to console and saved as HTML files.
 
 ## API Documentation
 
@@ -184,6 +207,32 @@ Creates a confirmed booking with customer contact information.
 - **Name**: Required, minimum 2 characters, letters and spaces only
 - **Email**: Required, valid email format
 - **Phone**: Required, valid phone number format
+
+### GET /api/bookings/:id
+
+Retrieves booking details by ID for confirmation page.
+
+**Response**:
+```json
+{
+  "id": 1,
+  "reference": "BK-20251010-001",
+  "client_name": "John Doe",
+  "email": "john@example.com",
+  "phone": "+372 5123 4567",
+  "service_id": 1,
+  "service_name": "Swedish Massage",
+  "duration": 60,
+  "price": 50.0,
+  "date": "2025-10-10",
+  "time_slot": "10:00",
+  "created_at": "2025-10-10T09:55:30Z"
+}
+```
+
+**Error Responses**:
+- **404 Not Found**: Booking does not exist
+- **400 Bad Request**: Invalid booking ID format
 
 ## User Interface
 
